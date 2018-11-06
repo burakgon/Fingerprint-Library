@@ -21,16 +21,14 @@ class MainActivity : AppCompatActivity(), onFingerListener  {
         {
             // val : immutable / Read Only
             // var : mutable / Read and Write
-
-            val flt  = FingerPrintLibrary(this, this)
-            if (flt.isHardwarePresent() == false)
-            {
+            if (!FingerPrintLibrary.isHardwarePresent(this)) {
                 Toast.makeText(this, "Cihazda FingerPrint Desteği Yok", Toast.LENGTH_LONG).show()
             }
-            else if (flt.isFingerprintRegistered() == false)
-            {
+            else if (!FingerPrintLibrary.isFingerprintRegistered(this)) {
                 Toast.makeText(this, "Tanımlanmış parmak izi bulunamadı", Toast.LENGTH_LONG).show()
             }
+            else
+                FingerPrintLibrary(this, this)
         }
     }
 

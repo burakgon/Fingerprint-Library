@@ -42,15 +42,12 @@ import android.support.v4.hardware.fingerprint.FingerprintManagerCompat
 class FingerPrintLibrary(private val appContext: Context, private val listener: onFingerListener) : FingerprintManager.AuthenticationCallback() {
 
     private var cancellationSignal: CancellationSignal? = null
-    private var fingerprintManagerCompat: FingerprintManagerCompat? = null
     private var fingerprintManager: FingerprintManager? = null
     private var keyguardManager: KeyguardManager? = null
     private var keyStore: KeyStore? = null
     private var keyGenerator: KeyGenerator? = null
 
     private val KEY_NAME = "example_key"
-
-    private val tag = "FingerPrintLibrary"
 
     private var cipher: Cipher? = null
     private var cryptoObjectManager: FingerprintManager.CryptoObject? = null
@@ -76,6 +73,7 @@ class FingerPrintLibrary(private val appContext: Context, private val listener: 
         myFingerListener = appContext as onFingerListener
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            fingerprintManager =  appContext.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
             if (getManagers()) {
                 generateKey()
 
@@ -115,93 +113,57 @@ class FingerPrintLibrary(private val appContext: Context, private val listener: 
         }
     }
 
-
-    fun isHardwarePresent(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            if (fingerprintManager!!.isHardwareDetected == false) {
-                return false
+    companion object {
+        private val TAG = "FingerPrintLibrary"
+        fun isHardwarePresent(context: Context): Boolean {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                val fingerprintManager: FingerprintManager = context.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
+                return fingerprintManager.isHardwareDetected
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val fingerprintManagerCompat: FingerprintManagerCompat = FingerprintManagerCompat.from(context)
+                return fingerprintManagerCompat.isHardwareDetected
             }
-            return true
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            if (fingerprintManagerCompat!!.isHardwareDetected == false) {
-                return false
-            }
-            return true
+            return false
         }
-        return false
+
+        fun isFingerprintRegistered(context: Context): Boolean {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                val fingerprintManager: FingerprintManager = context.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
+                return fingerprintManager.hasEnrolledFingerprints()
+            }else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val fingerprintManagerCompat: FingerprintManagerCompat = FingerprintManagerCompat.from(context)
+                return fingerprintManagerCompat.hasEnrolledFingerprints()
+            }
+            return false
+        }
     }
 
-    fun isFingerprintRegistered(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            if (fingerprintManager!!.hasEnrolledFingerprints() == false)
-            {
-                return false
-            }
-            return true
-        }else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            if (fingerprintManagerCompat!!.hasEnrolledFingerprints() == false)
-            {
-                return false
-            }
-            return true
-        }
-        return  false
-    }
+
+
 
     private fun getManagers(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.P ) {
-
-            keyguardManager = appContext.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-            fingerprintManager = appContext.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
-
-            if (fingerprintManager!!.isHardwareDetected == false)
-            {
-                Log.w(tag,"Cihazda FingerPrint Desteği Yok")
-                return false
-            }
-
-            if (keyguardManager?.isKeyguardSecure == false) {
-                Log.w(tag,"Kilit ekranı güvenliği etkin değil")
-                return false
-            }
-
-            if (ActivityCompat.checkSelfPermission(appContext,Manifest.permission.USE_FINGERPRINT) != PackageManager.PERMISSION_GRANTED) {
-                Log.w(tag,"Parmak, kimlik doğrulaması izni etkin değil")
-                return false
-            }
-
-            if (fingerprintManager?.hasEnrolledFingerprints() == false) {
-                Log.w(tag,"Tanımlanmış parmak izi bulunamadı")
-                return false
-            }
+        keyguardManager = appContext.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        if (!isHardwarePresent(appContext)) {
+            Log.w(TAG,"Cihazda FingerPrint Desteği Yok")
+            return false
         }
-        else  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-
-            keyguardManager = appContext.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-            fingerprintManagerCompat = FingerprintManagerCompat.from(appContext)
-
-            if (fingerprintManagerCompat!!.isHardwareDetected == false)
-            {
-                Log.w(tag,"Cihazda FingerPrint Desteği Yok")
+        else if (!isFingerprintRegistered(appContext)) {
+            Log.w(TAG,"Tanımlanmış parmak izi bulunamadı")
+            return false
+        }
+        else if (!keyguardManager!!.isKeyguardSecure) {
+            Log.w(TAG,"Kilit ekranı güvenliği etkin değil")
+            return false
+        }
+        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.P ) {
+            return ActivityCompat.checkSelfPermission(appContext,Manifest.permission.USE_FINGERPRINT) == PackageManager.PERMISSION_GRANTED
+        }
+        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (ActivityCompat.checkSelfPermission(appContext,Manifest.permission.USE_BIOMETRIC) != PackageManager.PERMISSION_GRANTED) {
+                Log.w(TAG,"Parmak, kimlik doğrulaması izni etkin değil")
                 return false
             }
-
-            if (keyguardManager?.isKeyguardSecure == false) {
-                Log.w(tag,"Kilit ekranı güvenliği etkin değil")
-                return false
-            }
-
-            if (ActivityCompat.checkSelfPermission(appContext,Manifest.permission.USE_FINGERPRINT) != PackageManager.PERMISSION_GRANTED) {
-                Log.w(tag,"Parmak, kimlik doğrulaması izni etkin değil")
-                return false
-            }
-
-            if (fingerprintManagerCompat?.hasEnrolledFingerprints() == false) {
-                Log.w(tag,"Tanımlanmış parmak izi bulunamadı")
-                return false
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
             {
                 biometricPrompt = BiometricPrompt.Builder(appContext)
                     .setTitle(myFingerListener.setTittle())
@@ -213,8 +175,11 @@ class FingerPrintLibrary(private val appContext: Context, private val listener: 
                     })
                     .build()
             }
+            return true
         }
-        return true
+
+        Log.w(TAG, "Unknown state detected. Returning false...")
+        return false
     }
 
     private fun generateKey() {
